@@ -7,26 +7,17 @@ import re
 import sys
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar, Token
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
 from typing import Any, Iterator
 from urllib.parse import urlsplit
 
 import colorlog
-
-LOG_DIR = os.getenv("LOG_DIR", "logs").strip() or "logs"
-INFO_LOG = os.path.join(LOG_DIR, "bot_log.log")
-ERROR_LOG = os.path.join(LOG_DIR, "error_log.log")
-EVENT_LOG = os.path.join(LOG_DIR, "events_log.jsonl")
-PERF_LOG = os.path.join(LOG_DIR, "perf_log.jsonl")
-
-os.makedirs(LOG_DIR, exist_ok=True)
 
 _DISABLE_SINKS_ENV = "LOG_DISABLE_SINKS"
 
 
 def _sinks_disabled() -> bool:
     return os.getenv(_DISABLE_SINKS_ENV, "").strip().lower() in {"1", "true", "yes"}
+
 
 _log_context: ContextVar[dict[str, Any]] = ContextVar("maxload_log_context", default={})
 
@@ -47,49 +38,17 @@ _DEFAULT_TEXT_FIELDS = {
 
 _STANDARD_RECORD_ATTRS = set(vars(logging.makeLogRecord({})).keys()) | {"message", "asctime"}
 _TEXT_RESERVED_FIELDS = _STANDARD_RECORD_ATTRS | {
-    "service",
-    "flow",
-    "request_id",
-    "event_name",
-    "kind",
-    "user_id",
-    "chat_type",
-    "task_name",
-    "duration_ms",
-    "text_context",
-    "text_context_block",
-    "text_message_block",
+    "service", "flow", "request_id", "event_name", "kind", "user_id",
+    "chat_type", "task_name", "duration_ms", "text_context",
+    "text_context_block", "text_message_block",
 }
-
 _TEXT_BASE_FIELD_ORDER = (
-    "service",
-    "flow",
-    "request_id",
-    "event_name",
-    "user_id",
-    "chat_type",
-    "duration_ms",
+    "service", "flow", "request_id", "event_name", "user_id", "chat_type", "duration_ms",
 )
 _TEXT_DYNAMIC_FIELD_PRIORITY = (
-    "bot_username",
-    "entrypoint",
-    "source",
-    "url",
-    "path",
-    "file_id",
-    "filename",
-    "extra_filename",
-    "size_hint",
-    "size",
-    "elapsed",
-    "count",
-    "workers",
-    "max_workers",
-    "queue_cap",
-    "queue_depth",
-    "priority",
-    "position",
-    "retry_after",
+    "bot_username", "entrypoint", "source", "url", "path", "file_id", "filename",
+    "extra_filename", "size_hint", "size", "elapsed", "count", "workers",
+    "max_workers", "queue_cap", "queue_depth", "priority", "position", "retry_after",
 )
 _TEXT_DYNAMIC_FIELD_MAX = 5
 _TEXT_VALUE_MAX_LENGTH = 120
@@ -99,18 +58,15 @@ _URL_PATH_NOISE = {"status", "statuses", "video", "watch", "reel", "reels", "p"}
 
 
 def _sanitize_field_key(key: str) -> str:
-    if key in _STANDARD_RECORD_ATTRS:
-        return f"extra_{key}"
-    return key
+    return f"extra_{key}" if key in _STANDARD_RECORD_ATTRS else key
 
 
 def _sanitize_mapping(values: dict[str, Any]) -> dict[str, Any]:
-    sanitized: dict[str, Any] = {}
-    for key, value in values.items():
-        if value in (None, ""):
-            continue
-        sanitized[_sanitize_field_key(str(key))] = value
-    return sanitized
+    return {
+        _sanitize_field_key(str(key)): value
+        for key, value in values.items()
+        if value not in (None, "")
+    }
 
 
 def _serialize_text_field_value(value: Any) -> str:
@@ -139,12 +95,10 @@ def summarize_url_for_log(url: Any) -> str:
     candidate = url.strip()
     if not candidate:
         return "-"
-
     parsed = urlsplit(candidate if "://" in candidate else f"https://{candidate}")
     host = (parsed.netloc or "").lower() or "url"
     segments = [
-        segment
-        for segment in (parsed.path or "").split("/")
+        segment for segment in (parsed.path or "").split("/")
         if segment and segment.lower() not in _URL_PATH_NOISE
     ]
     hint = segments[-1][:24] if segments else "root"
@@ -157,7 +111,6 @@ def summarize_text_for_log(text: Any) -> str:
     candidate = text.strip()
     if not candidate:
         return "-"
-
     match = _URL_RE.search(candidate)
     if match:
         return summarize_url_for_log(match.group(0))
@@ -166,10 +119,8 @@ def summarize_text_for_log(text: Any) -> str:
 
 def _extract_dynamic_text_fields(record: logging.LogRecord) -> dict[str, Any]:
     return {
-        key: value
-        for key, value in record.__dict__.items()
-        if key not in _TEXT_RESERVED_FIELDS
-        and value not in (None, "", "-")
+        key: value for key, value in record.__dict__.items()
+        if key not in _TEXT_RESERVED_FIELDS and value not in (None, "", "-")
     }
 
 
@@ -179,97 +130,44 @@ def _is_meaningful_text_value(value: Any) -> bool:
 
 def _ordered_dynamic_text_fields(dynamic_fields: dict[str, Any]) -> list[tuple[str, Any]]:
     priority_map = {key: index for index, key in enumerate(_TEXT_DYNAMIC_FIELD_PRIORITY)}
-    return sorted(
-        dynamic_fields.items(),
-        key=lambda item: (priority_map.get(item[0], len(priority_map)), item[0]),
-    )
+    return sorted(dynamic_fields.items(), key=lambda item: (priority_map.get(item[0], len(priority_map)), item[0]))
 
 
 def _build_text_context(record: logging.LogRecord) -> str:
     fields: list[str] = []
-
     for key in _TEXT_BASE_FIELD_ORDER:
         value = getattr(record, key, None)
-        if not _is_meaningful_text_value(value):
-            continue
-        rendered_key = "event" if key == "event_name" else key
-        fields.append(f"{rendered_key}={_serialize_text_field_value(value)}")
-
+        if _is_meaningful_text_value(value):
+            rendered_key = "event" if key == "event_name" else key
+            fields.append(f"{rendered_key}={_serialize_text_field_value(value)}")
     dynamic_items = _ordered_dynamic_text_fields(_extract_dynamic_text_fields(record))
-    if dynamic_items:
-        visible_items = dynamic_items[:_TEXT_DYNAMIC_FIELD_MAX]
-        for key, value in visible_items:
-            fields.append(f"{key}={_serialize_text_field_value(value)}")
-        remaining = len(dynamic_items) - len(visible_items)
-        if remaining > 0:
-            fields.append(f"more=+{remaining}")
-
+    for key, value in dynamic_items[:_TEXT_DYNAMIC_FIELD_MAX]:
+        fields.append(f"{key}={_serialize_text_field_value(value)}")
+    remaining = len(dynamic_items) - _TEXT_DYNAMIC_FIELD_MAX
+    if remaining > 0:
+        fields.append(f"more=+{remaining}")
     return " ".join(fields)
-
-
-class LocalTimeFormatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
-        return super().formatTime(record, datefmt=datefmt or "%Y-%m-%d %H:%M:%S")
-
-
-class JsonLinesFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        payload = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat(timespec="milliseconds"),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-            "service": getattr(record, "service", None),
-            "flow": getattr(record, "flow", None),
-            "request_id": getattr(record, "request_id", None),
-            "event_name": getattr(record, "event_name", None),
-            "kind": getattr(record, "kind", "app"),
-            "user_id": getattr(record, "user_id", None),
-            "chat_type": getattr(record, "chat_type", None),
-            "task_name": getattr(record, "task_name", None),
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-        }
-
-        duration_ms = getattr(record, "duration_ms", None)
-        if duration_ms not in (None, "-", ""):
-            payload["duration_ms"] = duration_ms
-
-        extra = _extract_dynamic_text_fields(record)
-        if extra:
-            payload["extra"] = extra
-
-        if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
-
-        return json.dumps(payload, ensure_ascii=False)
 
 
 class ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        context = _log_context.get()
-        for key, value in context.items():
+        for key, value in _log_context.get().items():
             if not hasattr(record, key):
                 setattr(record, key, value)
-
         for key, default in _DEFAULT_TEXT_FIELDS.items():
             if not hasattr(record, key):
                 setattr(record, key, default)
-
         try:
             task = asyncio.current_task()
         except RuntimeError:
             task = None
         if getattr(record, "task_name", "-") in (None, "-", "") and task is not None:
             record.task_name = task.get_name()
-
         duration_ms = getattr(record, "duration_ms", None)
         if isinstance(duration_ms, (int, float)):
             record.duration_ms = f"{duration_ms:.2f}"
         elif duration_ms in (None, ""):
             record.duration_ms = "-"
-
         message = record.getMessage()
         if message.startswith("["):
             record.text_context_block = ""
@@ -282,17 +180,7 @@ class ContextFilter(logging.Filter):
                 record.text_message_block = ""
             else:
                 record.text_message_block = f" | {message}" if message else ""
-
         return True
-
-
-class KindFilter(logging.Filter):
-    def __init__(self, allowed_kind: str) -> None:
-        super().__init__()
-        self.allowed_kind = allowed_kind
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return getattr(record, "kind", "app") == self.allowed_kind
 
 
 class LogContextManager:
@@ -331,61 +219,23 @@ class ContextLoggerAdapter(logging.LoggerAdapter):
             yield context
 
     def event(self, event_name: str, message: str | None = None, *, level: int = logging.INFO, **fields: Any) -> None:
-        self.log(
-            level,
-            message or event_name,
-            extra={
-                "kind": "event",
-                "event_name": event_name,
-                **fields,
-            },
-        )
+        self.log(level, message or event_name, extra={"kind": "event", "event_name": event_name, **fields})
 
-    def perf(
-        self,
-        event_name: str,
-        *,
-        duration_ms: float,
-        message: str | None = None,
-        level: int = logging.INFO,
-        **fields: Any,
-    ) -> None:
-        self.log(
-            level,
-            message or event_name,
-            extra={
-                "kind": "perf",
-                "event_name": event_name,
-                "duration_ms": duration_ms,
-                **fields,
-            },
-        )
+    def perf(self, event_name: str, *, duration_ms: float, message: str | None = None,
+             level: int = logging.INFO, **fields: Any) -> None:
+        self.log(level, message or event_name, extra={
+            "kind": "perf", "event_name": event_name, "duration_ms": duration_ms, **fields,
+        })
 
-    def download_request(
-        self,
-        *,
-        user_id: Any,
-        username: str | None = None,
-        service: str,
-        url: str,
-        chat_type: str | None = None,
-        **extra: Any,
-    ) -> None:
+    def download_request(self, *, user_id: Any, username: str | None = None, service: str,
+                         url: str, chat_type: str | None = None, **extra: Any) -> None:
         user_str = f"{user_id} (@{username})" if username else str(user_id)
         msg = f"[REQUEST] user={user_str} | service={service} | url={url}"
         self.info(msg, extra={"kind": "app", "user_id": user_id, "service": service, "url": url, **extra})
 
-    def download_success(
-        self,
-        *,
-        user_id: Any,
-        service: str,
-        file_type: str | None = "media",
-        size_bytes: int | None = None,
-        duration_s: float | None = None,
-        url: str,
-        **extra: Any,
-    ) -> None:
+    def download_success(self, *, user_id: Any, service: str, file_type: str | None = "media",
+                         size_bytes: int | None = None, duration_s: float | None = None,
+                         url: str, **extra: Any) -> None:
         details: list[str] = []
         if size_bytes:
             details.append(_format_bytes_compact(size_bytes))
@@ -396,41 +246,20 @@ class ContextLoggerAdapter(logging.LoggerAdapter):
         msg = f"[SUCCESS] user={user_id} | {service} | {ft}{details_str} | {url}"
         self.info(msg, extra={"kind": "app", "user_id": user_id, "service": service, "url": url, **extra})
 
-    def download_cached(
-        self,
-        *,
-        user_id: Any,
-        service: str,
-        file_type: str | None = "media",
-        url: str,
-        **extra: Any,
-    ) -> None:
+    def download_cached(self, *, user_id: Any, service: str, file_type: str | None = "media",
+                        url: str, **extra: Any) -> None:
         ft = file_type or "media"
         msg = f"[CACHED] user={user_id} | {service} | {ft} (cache hit) | {url}"
         self.info(msg, extra={"kind": "app", "user_id": user_id, "service": service, "url": url, **extra})
 
-    def download_error(
-        self,
-        *,
-        user_id: Any,
-        service: str,
-        error: Any,
-        url: str,
-        **extra: Any,
-    ) -> None:
+    def download_error(self, *, user_id: Any, service: str, error: Any, url: str, **extra: Any) -> None:
         msg = f"[FAILED] user={user_id} | {service} | error={error} | {url}"
         self.error(msg, extra={"kind": "app", "user_id": user_id, "service": service, "url": url, **extra})
 
 
-def _console_verbose() -> bool:
-    return os.getenv("LOG_CONSOLE_VERBOSE", "").strip().lower() in {"1", "true", "yes"}
-
-
 def _resolve_log_level(env_name: str, default: int = logging.INFO) -> int:
     val = os.getenv(env_name, "").strip().upper()
-    if not val:
-        return default
-    return getattr(logging, val, default)
+    return getattr(logging, val, default) if val else default
 
 
 def _format_bytes_compact(size_bytes: int) -> str:
@@ -443,21 +272,8 @@ def _format_bytes_compact(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
-class ConsoleCleanFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        if _console_verbose():
-            return True
-        kind = getattr(record, "kind", "app")
-        if kind in ("event", "perf"):
-            return False
-        return True
-
-
 CONSOLE_FORMAT = (
     "%(log_color)s%(asctime)s | %(levelname)s | %(name)s%(text_context_block)s%(text_message_block)s%(reset)s"
-)
-FILE_FORMAT = (
-    "%(asctime)s | %(levelname)s | %(name)s%(text_context_block)s%(text_message_block)s"
 )
 
 
@@ -467,37 +283,10 @@ def _build_console_handler(level: int | None = None) -> logging.Handler:
     handler.setLevel(resolved_level)
     formatter = colorlog.ColoredFormatter(
         CONSOLE_FORMAT,
-        log_colors={
-            "DEBUG": "cyan",
-            "INFO": "green",
-            "WARNING": "yellow",
-            "ERROR": "red",
-            "CRITICAL": "bold_red",
-        },
+        log_colors={"DEBUG": "cyan", "INFO": "green", "WARNING": "yellow", "ERROR": "red", "CRITICAL": "bold_red"},
     )
     handler.setFormatter(formatter)
-    handler.addFilter(ConsoleCleanFilter())
     handler.addFilter(ContextFilter())
-    return handler
-
-
-def _build_file_handler(path: str, level: int, *, clean: bool = False) -> logging.Handler:
-    handler = RotatingFileHandler(path, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8")
-    handler.setLevel(level)
-    formatter = LocalTimeFormatter(FILE_FORMAT)
-    handler.setFormatter(formatter)
-    if clean:
-        handler.addFilter(ConsoleCleanFilter())
-    handler.addFilter(ContextFilter())
-    return handler
-
-
-def _build_json_handler(path: str, kind: str) -> logging.Handler:
-    handler = RotatingFileHandler(path, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8")
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(JsonLinesFormatter())
-    handler.addFilter(ContextFilter())
-    handler.addFilter(KindFilter(kind))
     return handler
 
 
@@ -505,40 +294,11 @@ _base_logger = logging.getLogger("maxload")
 _base_logger.setLevel(logging.DEBUG)
 _base_logger.propagate = False
 _base_logger.handlers.clear()
-
-def _safe_add_handler(
-    factory,
-    *,
-    description: str,
-    path: str | None = None,
-) -> bool:
-    try:
-        _base_logger.addHandler(factory())
-        return True
-    except OSError as exc:
-        _base_logger.warning(
-            "Disabled %s because it is not writable.",
-            description,
-            extra={
-                "service": "logger",
-                "flow": "bootstrap",
-                "event_name": "logger_handler_disabled",
-                "path": path or "-",
-                "error_type": type(exc).__name__,
-                "error_message": str(exc),
-            },
-        )
-        return False
-
-
 if _sinks_disabled():
     _base_logger.addHandler(logging.NullHandler())
 else:
+    # Container-friendly: all application logs go to stdout; no directories or files are created.
     _base_logger.addHandler(_build_console_handler())
-    _safe_add_handler(lambda: _build_file_handler(INFO_LOG, logging.INFO, clean=True), description="info file logger", path=INFO_LOG)
-    _safe_add_handler(lambda: _build_file_handler(ERROR_LOG, logging.ERROR), description="error file logger", path=ERROR_LOG)
-    _safe_add_handler(lambda: _build_json_handler(EVENT_LOG, "event"), description="event json logger", path=EVENT_LOG)
-    _safe_add_handler(lambda: _build_json_handler(PERF_LOG, "perf"), description="perf json logger", path=PERF_LOG)
 
 logger = ContextLoggerAdapter(_base_logger, {})
 
@@ -572,22 +332,14 @@ def _configure_third_party_loggers() -> None:
         third_party_logger = logging.getLogger(name)
         third_party_logger.setLevel(level)
         third_party_logger.propagate = False
-        # With propagate=False and no handlers of their own, surviving records
-        # (e.g. aiogram ERROR) would fall through to logging.lastResort — raw,
-        # unformatted stderr that never reaches the log files — so route them
-        # through the app's handlers explicitly.
+        # Route surviving third-party records through the same stdout handler.
         for handler in _base_logger.handlers:
             if handler not in third_party_logger.handlers:
                 third_party_logger.addHandler(handler)
 
 
 def disable_log_sinks() -> None:
-    """Detach and close every log sink for this process.
-
-    Used by short-lived worker subprocesses (services.download.worker_cli) so
-    they neither pollute stderr — which the parent process reads as the error
-    protocol — nor write/rotate the parent's log files from a second process.
-    """
+    """Disable logging in short-lived worker subprocesses."""
     os.environ[_DISABLE_SINKS_ENV] = "1"
     targets = [_base_logger] + [logging.getLogger(name) for name in _THIRD_PARTY_LOG_LEVELS]
     for target in targets:
