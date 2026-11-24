@@ -176,7 +176,7 @@ async def collect_media_entries(
     media_items = extract_twitter_media_items(tweet_media)
     total_items = len(media_items)
     post_url = tweet_media.get("tweetURL") or f"https://x.com/i/status/{tweet_id}"
-    dir_name = download_dir_name or str(tweet_id)
+    file_prefix = os.path.basename(download_dir_name or str(tweet_id))
 
     for index, media in enumerate(media_items):
         media_url = media.get("url")
@@ -199,7 +199,7 @@ async def collect_media_entries(
             )
             continue
 
-        file_name = os.path.join(dir_name, os.path.basename(urlsplit(media_url).path))
+        file_name = f"{file_prefix}_{index}_{os.path.basename(urlsplit(media_url).path)}"
         entries.append(None)
         slot = len(entries) - 1
         logging.debug(

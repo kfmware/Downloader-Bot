@@ -6,37 +6,6 @@ import logging
 from services import logger as logger_module
 
 
-def test_safe_add_handler_falls_back_to_console_on_permission_error(monkeypatch):
-    stream = io.StringIO()
-    test_logger = logging.getLogger("maxload-test-bootstrap")
-    test_logger.handlers.clear()
-    test_logger.setLevel(logging.INFO)
-    test_logger.propagate = False
-
-    handler = logging.StreamHandler(stream)
-    handler.addFilter(logger_module.ContextFilter())
-    handler.setFormatter(logging.Formatter("%(message)s %(path)s %(error_type)s"))
-    test_logger.addHandler(handler)
-
-    monkeypatch.setattr(logger_module, "_base_logger", test_logger)
-    log_path = "/app/logs/bot_log.log"
-
-    def _raise_permission_error():
-        raise PermissionError(13, "Permission denied", log_path)
-
-    added = logger_module._safe_add_handler(
-        _raise_permission_error,
-        description="info file logger",
-        path=log_path,
-    )
-
-    assert added is False
-    output = stream.getvalue()
-    assert "Disabled info file logger because it is not writable." in output
-    assert log_path in output
-    assert "PermissionError" in output
-
-
 def test_third_party_loggers_route_through_app_handlers():
     logger_module._configure_third_party_loggers()
 
@@ -87,8 +56,7 @@ def test_disable_log_sinks_detaches_and_closes_all_sinks(monkeypatch):
     assert logger_module._sinks_disabled() is True
 
 
-def test_console_filter_suppresses_telemetry_events_by_default(monkeypatch):
-    monkeypatch.delenv("LOG_CONSOLE_VERBOSE", raising=False)
+def test_console_handler_writes_telemetry_events_by_default():
     stream = io.StringIO()
     handler = logger_module._build_console_handler(logging.INFO)
     # Replace stream so we can capture output
@@ -134,32 +102,9 @@ def test_console_filter_suppresses_telemetry_events_by_default(monkeypatch):
     handler.handle(record_app)
 
     output = stream.getvalue()
-    assert "flow_started" not in output
-    assert "download_probe" not in output
-    assert "[REQUEST] user=123 | twitter | https://x.com/status/1" in output
-
-
-def test_console_filter_allows_telemetry_when_verbose_enabled(monkeypatch):
-    monkeypatch.setenv("LOG_CONSOLE_VERBOSE", "1")
-    stream = io.StringIO()
-    handler = logger_module._build_console_handler(logging.INFO)
-    handler.setStream(stream)
-
-    record_event = logging.LogRecord(
-        name="maxload",
-        level=logging.INFO,
-        pathname="",
-        lineno=0,
-        msg="flow_started",
-        args=(),
-        exc_info=None,
-    )
-    record_event.kind = "event"
-    record_event.event_name = "flow_started"
-
-    handler.handle(record_event)
-    output = stream.getvalue()
     assert "flow_started" in output
+    assert "download_probe" in output
+    assert "[REQUEST] user=123 | twitter | https://x.com/status/1" in output
 
 
 def test_logger_download_summary_helpers():
@@ -199,6 +144,15 @@ def test_console_handler_targets_stdout_and_respects_log_level(monkeypatch):
     assert handler_debug.level == logging.DEBUG
 
 
+def test_runtime_logger_uses_stdout_without_file_sinks():
+    import sys
+
+    handlers = logger_module._base_logger.handlers
+    assert len(handlers) == 1
+    assert isinstance(handlers[0], logging.StreamHandler)
+    assert handlers[0].stream is sys.stdout
+
+
 def test_context_filter_skips_context_block_for_bracketed_messages():
     context_filter = logger_module.ContextFilter()
     record = logging.LogRecord(
@@ -217,43 +171,6 @@ def test_context_filter_skips_context_block_for_bracketed_messages():
     context_filter.filter(record)
     assert record.text_context_block == ""
     assert record.text_message_block == " | [STARTUP] Bot started successfully. Listening for updates..."
-
-
-def test_clean_file_handler_suppresses_telemetry_events(tmp_path):
-    log_file = tmp_path / "clean_test.log"
-    handler = logger_module._build_file_handler(str(log_file), logging.INFO, clean=True)
-    try:
-        record_event = logging.LogRecord(
-            name="maxload",
-            level=logging.INFO,
-            pathname="",
-            lineno=0,
-            msg="flow_started",
-            args=(),
-            exc_info=None,
-        )
-        record_event.kind = "event"
-
-        record_app = logging.LogRecord(
-            name="maxload",
-            level=logging.INFO,
-            pathname="",
-            lineno=0,
-            msg="[STARTUP] Bot initialized",
-            args=(),
-            exc_info=None,
-        )
-        record_app.kind = "app"
-
-        handler.handle(record_event)
-        handler.handle(record_app)
-        handler.flush()
-
-        content = log_file.read_text(encoding="utf-8")
-        assert "flow_started" not in content
-        assert "[STARTUP] Bot initialized" in content
-    finally:
-        handler.close()
 
 
 

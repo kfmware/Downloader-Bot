@@ -343,7 +343,6 @@ class YouTubeMediaService:
 
     async def download_with_ytdlp(self, url: str, filename: str) -> Optional[str]:
         out_path = self._downloader._resolve_target_path(filename)
-        os.makedirs(os.path.dirname(out_path) or self._output_dir, exist_ok=True)
         ydl_opts = build_ytdlp_youtube_options(
             format=YTDLP_FORMAT_720,
             outtmpl=out_path,
@@ -369,7 +368,6 @@ class YouTubeMediaService:
         merge_output_format: Optional[str] = "mp4",
     ) -> Optional[DownloadMetrics]:
         out_path = self._downloader._resolve_target_path(filename)
-        os.makedirs(os.path.dirname(out_path) or self._output_dir, exist_ok=True)
         ydl_opts = build_ytdlp_youtube_options(
             format=format_selector,
             outtmpl=out_path,

@@ -100,7 +100,7 @@ def test_user_message_formatters_include_dynamic_values():
         (admin_bm.your_message_sent, "sent"),
         (admin_bm.something_went_wrong, "Something went wrong"),
         (admin_bm.please_type_message, "Please type message"),
-        (admin_bm.log_deleted, "Log deleted"),
+        (admin_bm.log_deleted, "deployment console"),
         (admin_bm.active_users_check_no_targets, "no users"),
         (admin_bm.enter_chat_id, "chat ID"),
         (admin_bm.invalid_chat_id, "must be a number"),

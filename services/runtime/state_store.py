@@ -8,7 +8,7 @@ from threading import RLock
 from typing import Any, Callable, Optional
 
 
-_STATE_FILE = Path(__file__).resolve().parents[2] / ".runtime_state.json"
+_STATE_FILE = Path("/tmp/downloader-bot-runtime-state.json")
 _STATE_LOCK = RLock()
 _state: dict[str, Any] = {}
 _state_path: Optional[Path] = None
@@ -41,7 +41,6 @@ def _write_state_unlocked(state: dict[str, Any]) -> None:
             _STATE_FILE.unlink()
         return
 
-    _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     temp_path = _STATE_FILE.with_suffix(".tmp")
     temp_path.write_text(
         json.dumps(state, ensure_ascii=True, separators=(",", ":")),

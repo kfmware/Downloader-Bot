@@ -15,7 +15,7 @@ The project is built on `aiogram 3`, uses `SQLAlchemy + Alembic` for persistence
 - Shared download queue with backpressure, retries, and large-download worker handoff
 - PostgreSQL persistence for users, settings, analytics, and file cache
 - Admin tools for runtime stats, session metrics, user management, and log access
-- Structured event and performance logging for easier debugging and operations
+- Structured event and performance logging to stdout for easier debugging and operations
 
 ## Stack
 
@@ -175,7 +175,7 @@ Recommended setup:
 
 The `cookies` directory is kept in git with `cookies/.gitkeep`, but real cookie files are ignored by git and Docker builds. Treat `cookies/youtube.txt` like a password: do not commit it, paste it in chats, or bake it into images.
 
-For Docker Compose, the repository mounts `./cookies` into the container as `/app/cookies`, so the same `cookies/youtube.txt` path works inside the container. The bot startup fixes ownership on that mount because `yt-dlp` may need to update the cookie jar.
+For Docker Compose, the repository mounts `./cookies` into the container as `/app/cookies`, so the same `cookies/youtube.txt` path works inside the container. Ensure the runtime user can read the cookie file.
 
 ## Docker
 
@@ -196,8 +196,9 @@ docker compose up -d --build
 
 Notes:
 
-- Downloads and logs are stored in named Docker volumes
-- The container entrypoint prepares runtime paths and drops privileges before launching the app
+- Application logs, events, and performance records are written to stdout for the hosting platform to collect.
+- Downloaded media and temporary state use `/tmp` by default and are ephemeral; `/tmp` must be writable for media processing. Set `OUTPUT_DIR` to another writable directory if your host provides one.
+- The container entrypoint drops privileges before launching the app and does not create runtime directories.
 - `ffmpeg` is installed in the runtime image
 
 ## Performance Profile
@@ -233,12 +234,7 @@ This keeps CPU-heavy downloader work bounded while still letting the queue scale
 
 ## Logging and Observability
 
-The bot writes both human-readable and structured logs:
-
-- `logs/bot_log.log`
-- `logs/error_log.log`
-- `logs/events_log.jsonl`
-- `logs/perf_log.jsonl`
+Human-readable logs and structured event/performance records are emitted to stdout; the hosting platform's console is the log store.
 
 The logging layer adds request-scoped context such as `service`, `flow`, and `request_id`, which makes it easier to trace a single user action across fetch, queue, download, and delivery steps.
 

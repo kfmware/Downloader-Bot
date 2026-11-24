@@ -351,7 +351,7 @@ async def main():
             import middlewares
             from handlers.admin import clear_downloads_and_notify
 
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 
             dp.include_router(handlers.router)
 

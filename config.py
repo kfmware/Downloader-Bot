@@ -123,8 +123,8 @@ CUSTOM_API_URL = _validate_custom_api_url(
 MEASUREMENT_ID = _read_env("MEASUREMENT_ID")
 API_SECRET = _read_env("API_SECRET")
 CHANNEL_ID = _read_env("CHANNEL_ID")
-OUTPUT_DIR = os.getenv(
-    "OUTPUT_DIR", os.path.join(tempfile.gettempdir(), "downloader-bot")
+OUTPUT_DIR = _read_env("OUTPUT_DIR") or os.path.join(
+    tempfile.gettempdir(), "downloader-bot"
 )
 COBALT_API_URL = _read_env("COBALT_API_URL")
 if COBALT_API_URL:
