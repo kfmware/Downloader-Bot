@@ -58,7 +58,7 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --from=deno /usr/bin/deno /usr/local/bin/deno
 COPY . .
 
-RUN mkdir -p /app/downloads /app/logs /app/cookies && \
+RUN mkdir -p /app/cookies && \
     chown -R appuser:appgroup /app
 
 ENTRYPOINT ["python", "container_entrypoint.py"]

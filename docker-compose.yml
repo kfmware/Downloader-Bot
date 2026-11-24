@@ -6,8 +6,6 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - downloader_downloads:/app/downloads
-      - downloader_log:/app/logs
       - ./cookies:/app/cookies
     env_file: .env
     container_name: downloader-bot
@@ -93,6 +91,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  downloader_downloads:
-  downloader_log:
   postgres_data:

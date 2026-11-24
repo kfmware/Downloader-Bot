@@ -81,7 +81,7 @@ def create_app(
     bot = Bot(token=bot_token, default=default, session=session)
     dispatcher = Dispatcher()
     db = database_factory()
-    os.makedirs("downloads", exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     return Application(
         session=session,
         bot=bot,
@@ -351,8 +351,7 @@ async def main():
             import middlewares
             from handlers.admin import clear_downloads_and_notify
 
-            if not os.path.exists(OUTPUT_DIR):
-                os.makedirs(OUTPUT_DIR)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
 
             dp.include_router(handlers.router)
 

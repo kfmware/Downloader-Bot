@@ -1,6 +1,7 @@
 import ipaddress
 import logging as _std_logging
 import os
+import tempfile
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -122,7 +123,9 @@ CUSTOM_API_URL = _validate_custom_api_url(
 MEASUREMENT_ID = _read_env("MEASUREMENT_ID")
 API_SECRET = _read_env("API_SECRET")
 CHANNEL_ID = _read_env("CHANNEL_ID")
-OUTPUT_DIR = "downloads"
+OUTPUT_DIR = os.getenv(
+    "OUTPUT_DIR", os.path.join(tempfile.gettempdir(), "downloader-bot")
+)
 COBALT_API_URL = _read_env("COBALT_API_URL")
 if COBALT_API_URL:
     if os.getenv("COBALT_API_URL_DANGER_ACCEPT_INSECURE"):
