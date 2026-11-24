@@ -91,6 +91,21 @@ def test_database_url_helpers_normalize_postgres_urls():
     assert to_async_database_url("postgresql+psycopg://user:pass@localhost/testdb") == async_url
 
 
+def test_async_database_url_translates_libpq_sslmode():
+    assert to_async_database_url(
+        "postgresql://user:pass@localhost/testdb?sslmode=require&application_name=bot"
+    ) == (
+        "postgresql+asyncpg://user:pass@localhost/testdb"
+        "?ssl=require&application_name=bot"
+    )
+
+
+def test_async_database_url_prefers_explicit_asyncpg_ssl_option():
+    assert to_async_database_url(
+        "postgresql://user:pass@localhost/testdb?sslmode=require&ssl=disable"
+    ) == "postgresql+asyncpg://user:pass@localhost/testdb?ssl=disable"
+
+
 def test_resolve_alembic_database_url_prefers_explicit_config():
     assert resolve_alembic_database_url(
         "postgresql://configured/db",
