@@ -118,12 +118,7 @@ async def test_delete_log_requires_admin(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_log_truncates_log_files(monkeypatch, tmp_path):
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir(parents=True)
-    for name in ("bot_log.log", "error_log.log", "events_log.jsonl", "perf_log.jsonl"):
-        (log_dir / name).write_text("data", encoding="utf-8")
-
+async def test_delete_log_explains_console_logging(monkeypatch):
     call = SimpleNamespace(
         from_user=SimpleNamespace(id=1),
         answer=AsyncMock(),
@@ -134,17 +129,16 @@ async def test_delete_log_truncates_log_files(monkeypatch, tmp_path):
     )
     fake_bot = SimpleNamespace(send_chat_action=AsyncMock())
 
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(admin, "ADMINS_UID", [1])
     monkeypatch.setattr(admin, "bot", fake_bot)
-    monkeypatch.setattr(admin.py_logging, "shutdown", lambda: None)
 
     await admin.del_log(call)
 
-    fake_bot.send_chat_action.assert_awaited_once_with(1, "typing")
-    for name in ("bot_log.log", "error_log.log", "events_log.jsonl", "perf_log.jsonl"):
-        assert (log_dir / name).read_text(encoding="utf-8") == ""
-    call.message.reply.assert_awaited_once()
+    call.answer.assert_awaited_once_with(
+        "Logs are managed by the deployment console.", show_alert=True
+    )
+    fake_bot.send_chat_action.assert_not_awaited()
+    call.message.reply.assert_not_awaited()
 
 
 @pytest.mark.asyncio

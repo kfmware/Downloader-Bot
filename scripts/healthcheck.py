@@ -5,6 +5,8 @@ import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from utils.database_url import to_async_database_url
+
 HEARTBEAT_FILE = "/tmp/bot_heartbeat"
 MAX_HEARTBEAT_AGE_SECONDS = 60.0
 
@@ -15,7 +17,11 @@ async def check_database() -> bool:
         print("DATABASE_URL is not set", file=sys.stderr)
         return False
     try:
-        engine = create_async_engine(db_url, connect_args={"timeout": 5} if "sqlite" in db_url else {})
+        async_url = to_async_database_url(db_url)
+        engine = create_async_engine(
+            async_url,
+            connect_args={"timeout": 5} if "sqlite" in async_url else {},
+        )
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         await engine.dispose()

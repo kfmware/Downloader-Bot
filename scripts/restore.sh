@@ -3,12 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-LOG_FILE="${PROJECT_DIR}/logs/restore.log"
-
-mkdir -p "$(dirname "$LOG_FILE")"
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
 # Determine backup source
@@ -58,7 +55,7 @@ docker exec downloader-postgres psql -U bot_user -d postgres -c "CREATE DATABASE
 # Restore
 log "Running pg_restore..."
 docker cp "$BACKUP_FILE" downloader-postgres:/tmp/backup.dump
-docker exec downloader-postgres pg_restore -U bot_user -d downloader_bot /tmp/backup.dump 2>&1 | tee -a "$LOG_FILE"
+docker exec downloader-postgres pg_restore -U bot_user -d downloader_bot /tmp/backup.dump
 docker exec downloader-postgres rm -f /tmp/backup.dump
 
 # Fix ownership (dynamic — works for any table)

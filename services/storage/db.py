@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from config import DATABASE_URL, DB_MAX_OVERFLOW, DB_POOL_SIZE, DB_POOL_TIMEOUT
 from services.logger import logger as logging
 from services.storage.analytics_repository import AnalyticsRepositoryMixin
-from services.storage.database_url import to_async_database_url, to_sync_database_url
 from services.storage.download_history_repository import DownloadHistoryRepositoryMixin
 from services.storage.file_cache_repository import FileCacheRepositoryMixin
 from services.storage.local_cache import LocalCacheMixin
@@ -24,6 +23,7 @@ from services.storage.models import (
 )
 from services.storage.schema import SchemaManagerMixin
 from services.storage.user_repository import UserRepositoryMixin
+from utils.database_url import to_async_database_url, to_sync_database_url
 
 
 class SafeAsyncSession(AsyncSession):

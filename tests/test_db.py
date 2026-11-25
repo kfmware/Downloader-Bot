@@ -106,6 +106,16 @@ def test_async_database_url_prefers_explicit_asyncpg_ssl_option():
     ) == "postgresql+asyncpg://user:pass@localhost/testdb?ssl=disable"
 
 
+def test_async_database_url_drops_unsupported_channel_binding_parameter():
+    assert to_async_database_url(
+        "postgresql://user:pass@localhost/testdb"
+        "?sslmode=require&channel_binding=require&application_name=bot"
+    ) == (
+        "postgresql+asyncpg://user:pass@localhost/testdb"
+        "?ssl=require&application_name=bot"
+    )
+
+
 def test_resolve_alembic_database_url_prefers_explicit_config():
     assert resolve_alembic_database_url(
         "postgresql://configured/db",

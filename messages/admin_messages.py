@@ -186,7 +186,7 @@ def please_type_message():
 
 
 def log_deleted():
-    return "Log deleted, starting to write a new one."
+    return "Logs are written to the deployment console and cannot be deleted here."
 
 
 def active_users_check_started(total_users):

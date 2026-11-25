@@ -577,7 +577,9 @@ def test_create_photos_zip_stores_existing_files_without_recompression(tmp_path)
     second = tmp_path / "b.png"
     second.write_bytes(b"png-bytes-2")
     missing = tmp_path / "missing.jpg"
-    zip_path = tmp_path / "out" / "photos.zip"
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    zip_path = output_dir / "photos.zip"
 
     result = create_photos_zip([str(first), str(missing), str(second)], str(zip_path))
 

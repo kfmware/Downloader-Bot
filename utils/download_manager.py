@@ -466,7 +466,6 @@ class ResilientDownloader:
         max_size_bytes: Optional[int] = None,
         size_hint: Optional[int] = None,
     ) -> DownloadMetrics:
-        os.makedirs(self.output_dir, exist_ok=True)
         target_path = self._resolve_target_path(filename)
         temp_path = f"{target_path}{self.config.temp_suffix}"
         sync_started_at = time.perf_counter()
@@ -492,8 +491,6 @@ class ResilientDownloader:
             )
 
         headers = {**self._default_headers, **dict(extra_headers)}
-        os.makedirs(os.path.dirname(target_path) or self.output_dir, exist_ok=True)
-
         start_time = time.monotonic()
         resumed = False
         existing_size = 0
@@ -850,7 +847,7 @@ class ResilientDownloader:
     ) -> None:
         """Split the download into ranged chunks and fetch them in parallel."""
         ranges = self._split_ranges(total_size)
-        os.makedirs(os.path.dirname(temp_path) or self.output_dir, exist_ok=True)
+
         with open(temp_path, "wb") as temp_file:
             temp_file.truncate(total_size)
 

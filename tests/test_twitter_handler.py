@@ -227,7 +227,7 @@ async def test_reply_media_uses_request_unique_download_dir(monkeypatch, tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_collect_media_entries_supports_custom_download_dir(monkeypatch, tmp_path):
+async def test_collect_media_entries_uses_flat_unique_filenames(monkeypatch, tmp_path):
     monkeypatch.setattr(twitter, "OUTPUT_DIR", str(tmp_path))
     twitter.twitter_downloader.output_dir = str(tmp_path)
 
@@ -257,7 +257,7 @@ async def test_collect_media_entries_supports_custom_download_dir(monkeypatch, t
     )
 
     assert len(entries) == 1
-    assert entries[0]["path"] == str(tmp_path / "42_99_7" / "2.mp4")
+    assert entries[0]["path"] == str(tmp_path / "42_99_7_0_2.mp4")
     monkeypatch.setattr(twitter, "OUTPUT_DIR", str(tmp_path))
     twitter.twitter_downloader.output_dir = str(tmp_path)
     get_file_id = AsyncMock(side_effect=["cached-photo-id", None])

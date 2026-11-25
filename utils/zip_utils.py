@@ -1,4 +1,3 @@
-import os
 import zipfile
 
 
@@ -8,7 +7,6 @@ def create_photos_zip(photo_paths: list[str], output_zip_path: str) -> str:
     Blocking: run via ``asyncio.to_thread`` when calling from async code.
     Uses ZIP_STORED because photos are already compressed and do not deflate.
     """
-    os.makedirs(os.path.dirname(output_zip_path), exist_ok=True)
     with zipfile.ZipFile(output_zip_path, "w", zipfile.ZIP_STORED) as zipf:
         for idx, path in enumerate(photo_paths, 1):
             if os.path.isfile(path):
