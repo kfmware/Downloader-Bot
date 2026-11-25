@@ -19,7 +19,7 @@ _PRIVATE_IP_RANGES = (
     ipaddress.ip_network("fc00::/7"),
 )
 
-
+ 
 def _validate_custom_api_url(value: str, name: str) -> str:
     if not value:
         return value
